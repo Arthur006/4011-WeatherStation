@@ -82,7 +82,6 @@ def main():
                     readings.append(float(val / 1000.0))
 
                 # Update current readings
-                stationId = random.randint(1, 2)
                 if (stationId == 1):
                     cr_dashboard["ST1"] = readings
                     cr_iot["ST1"] = readings
