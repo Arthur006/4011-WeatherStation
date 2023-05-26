@@ -5,6 +5,9 @@ import struct
 import time
 import random
 import tago
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('http://localhost:7545'))
 
 PREAMBLE = 170
 iotFinished = True
@@ -62,6 +65,7 @@ def main():
         if (len(data) > 0):
 
             dataConverted = list(data)
+            # print(dataConverted)
 
             # Find index where data starts
             idx = 0
@@ -79,7 +83,12 @@ def main():
                 readings = []
                 stationId = int(recvData[1])
                 for val in recvData[2:]:
-                    readings.append(float(val / 1000.0))
+                    if (val == recvData[-1]):
+                        readings.append(float((val / 1000.0) - 1))
+                    else:
+                        readings.append(float(val / 1000.0))
+
+                readings[2] = readings[2] * 100
 
                 # Update current readings
                 if (stationId == 1):
@@ -107,19 +116,188 @@ def main():
                     cr_dashboard["ST1"] = None
                     cr_dashboard["ST2"] = None
 
+
+addr = "0x8CA3bEaf4DA08e65A72fF02A4B2BCDF2b85EcA88"
+private_key = "0xa378967cb38bd7140578a42162329d8157a167eaedd0917724ab318a76bc9504"
+
+contract_abi = [
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "sensorID",
+                "type": "string"
+            }
+        ],
+        "name": "retrieve",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "timestamp",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "temp",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "humidity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "pressure",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "tvoc",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "c02",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct IoTData.WeatherData[]",
+                "name": "",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "sensorID",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "temp",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "humidity",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "pressure",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "tvoc",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "c02",
+                "type": "uint256"
+            }
+        ],
+        "name": "store",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "weatherData",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "temp",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "humidity",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "pressure",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "tvoc",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "c02",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
+
+contract = w3.eth.contract(address=addr, abi=contract_abi)
+
+function_name = "store"
+
 def iot_thread(readings1, readings2):
 
     global iotFinished
 
+    account = w3.eth.account.from_key(private_key)
+    sender_addr = account.address
+
+    nonce = w3.eth.get_transaction_count(sender_addr)
+
     if (readings1 != None):
         # Iot send code
         print("Send 1")
-        time.sleep(5)
+
+        transaction = contract.functions.store("ST1", int(readings1[0]), int(readings1[2]), int(readings1[1]), int(readings1[3]), int(readings1[4])).build_transaction({
+            'from': sender_addr,
+            'nonce': nonce,
+        })
+
+        signed_txn = w3.eth.account.sign_transaction(transaction, private_key)
+
+        transaction_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
 
     if (readings2 != None):
         # Iot send code
         print("Send 2")
-        time.sleep(5)
+        transaction = contract.functions.store("ST2", int(readings2[0]), int(readings2[2]), int(readings2[1]), int(readings2[3]), int(readings2[4])).build_transaction({
+            'from': sender_addr,
+            'nonce': nonce,
+        })
+
+        signed_txn = w3.eth.account.sign_transaction(transaction, private_key)
+
+        transaction_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
 
     iotFinished = True
 
